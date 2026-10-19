@@ -1,0 +1,68 @@
+services:
+
+  router:
+    build:
+      context: ./iot_environment/router
+    container_name: iot-router
+    ports:
+      - "5000:5000"
+    networks:
+      - iot_network
+
+  temperature_sensor:
+    build:
+      context: ./iot_environment/temperature_sensor
+    container_name: temperature-sensor
+    ports:
+      - "5001:5001"
+    networks:
+      - iot_network
+    depends_on:
+      - router
+      - mqtt_broker
+
+  smart_light:
+    build:
+      context: ./iot_environment/smart_light
+    container_name: smart-light
+    ports:
+      - "5002:5002"
+    networks:
+      - iot_network
+    depends_on:
+      - router
+      - mqtt_broker
+
+  mqtt_broker:
+    image: eclipse-mosquitto:2
+    container_name: mqtt-broker
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./iot_environment/mqtt_broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./iot_environment/mqtt_broker/passwordfile:/mosquitto/config/passwordfile
+    networks:
+      - iot_network
+
+  controller:
+    build:
+      context: ./iot_environment/controller
+    container_name: iot-controller
+    networks:
+      - iot_network
+    depends_on:
+      - mqtt_broker
+
+  attacker_rl:
+    build:
+      context: ./attacker_rl
+    container_name: attacker-rl
+    networks:
+      - iot_network
+    depends_on:
+      - mqtt_broker
+
+networks:
+
+  iot_network:
+    driver: bridge
