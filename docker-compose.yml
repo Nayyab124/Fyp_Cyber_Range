@@ -1,24 +1,43 @@
-services:
 
+services:
   router:
     build:
       context: ./iot_environment/router
     container_name: iot-router
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      net.ipv4.ip_forward: "1"
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     networks:
-      - iot_network
+      iot_network:
+        ipv4_address: 172.29.10.2
+      attacker_network:
+        ipv4_address: 172.29.20.2
+
+  mqtt_broker:
+    image: eclipse-mosquitto:2
+    container_name: mqtt-broker
+    ports:
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./iot_environment/mqtt_broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./iot_environment/mqtt_broker/passwordfile:/mosquitto/config/passwordfile
+    networks:
+      iot_network:
+        ipv4_address: 172.29.10.3
 
   temperature_sensor:
     build:
       context: ./iot_environment/temperature_sensor
     container_name: temperature-sensor
     ports:
-      - "5001:5001"
+      - "127.0.0.1:5001:5001"
     networks:
-      - iot_network
+      iot_network:
+        ipv4_address: 172.29.10.4
     depends_on:
-      - router
       - mqtt_broker
 
   smart_light:
@@ -26,30 +45,20 @@ services:
       context: ./iot_environment/smart_light
     container_name: smart-light
     ports:
-      - "5002:5002"
+      - "127.0.0.1:5002:5002"
     networks:
-      - iot_network
+      iot_network:
+        ipv4_address: 172.29.10.5
     depends_on:
-      - router
       - mqtt_broker
-
-  mqtt_broker:
-    image: eclipse-mosquitto:2
-    container_name: mqtt-broker
-    ports:
-      - "1883:1883"
-    volumes:
-      - ./iot_environment/mqtt_broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
-      - ./iot_environment/mqtt_broker/passwordfile:/mosquitto/config/passwordfile
-    networks:
-      - iot_network
 
   controller:
     build:
       context: ./iot_environment/controller
     container_name: iot-controller
     networks:
-      - iot_network
+      iot_network:
+        ipv4_address: 172.29.10.6
     depends_on:
       - mqtt_broker
 
@@ -57,12 +66,27 @@ services:
     build:
       context: ./attacker_rl
     container_name: attacker-rl
+    cap_add:
+      - NET_ADMIN
+    environment:
+      MQTT_HOST: "172.29.10.3"
+      MQTT_PORT: "1883"
     networks:
-      - iot_network
+      attacker_network:
+        ipv4_address: 172.29.20.3
     depends_on:
+      - router
       - mqtt_broker
 
 networks:
-
   iot_network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.10.0/24
+
+  attacker_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.20.0/24
